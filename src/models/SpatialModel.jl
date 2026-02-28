@@ -1,20 +1,9 @@
-\
-module SpatialModel
-
-using CairoMakie
-using Colors
-using Random
-using Statistics
-using Distributions
-using Base.Threads
-
-export GridSpace, TimeSeriesData, ModelParameters, GridDynamics,
-       initialize_grid!, update_totals!, step!, run_simulation!
+## spatial_standalone.jl
+using CairoMakie, Colors, Random, Statistics, Distributions, Base.Threads
 
 mutable struct GridSpace
     rows::Int
     cols::Int
-
     nS0::Matrix{Int32}
     nSR::Matrix{Int32}
     nSR2::Matrix{Int32}
@@ -23,7 +12,6 @@ mutable struct GridSpace
     nRS::Matrix{Int32}
     nRR::Matrix{Int32}
     nRR2::Matrix{Int32}
-
     total_pop::Matrix{Int32}
     type_matrix::Matrix{UInt8}
     color_matrix::Matrix{RGBA{Float32}}
@@ -43,7 +31,7 @@ mutable struct GridSpace
             zeros(Int32, rows, cols),
             zeros(UInt8, rows, cols),
             fill(RGBA{Float32}(1,1,1,0), rows, cols),
-            zeros(Float32, rows, cols),
+            zeros(Float32, rows, cols)
         )
     end
 end
@@ -58,7 +46,6 @@ mutable struct TimeSeriesData
     nRS::Vector{Float64}
     nRR::Vector{Float64}
     nRR2::Vector{Float64}
-
     function TimeSeriesData()
         new(Float64[], Float64[], Float64[], Float64[], Float64[],
             Float64[], Float64[], Float64[], Float64[])
@@ -99,10 +86,9 @@ function initialize_grid!(grid::GridSpace;
     for (type_idx, frac) in enumerate(population_fractions)
         n_this = round(Int, frac * n_patches)
         for _ in 1:n_this
-            if idx <= n_patches
-                assignments[idx] = type_idx
-                idx += 1
-            end
+            idx <= n_patches || break
+            assignments[idx] = type_idx
+            idx += 1
         end
     end
 
@@ -111,7 +97,6 @@ function initialize_grid!(grid::GridSpace;
     @inbounds for lin in 1:n_patches
         i = div(lin - 1, grid.cols) + 1
         j = mod(lin - 1, grid.cols) + 1
-
         a = assignments[lin]
         if a > 0
             pop = population_types[a]
@@ -208,12 +193,6 @@ function setup_visualization(grid::GridSpace, ts::TimeSeriesData)
     return fig, implot
 end
 
-function update_visual!(grid::GridSpace, ts::TimeSeriesData, implot)
-    get_dominant_types!(grid)
-    create_color_matrix!(grid)
-    implot[1] = grid.color_matrix
-end
-
 struct ModelParameters
     λ::Float64
     λSS::Float64
@@ -274,9 +253,7 @@ end
 
 @inline function get_A_patch(absolute_time::Float64, phase::Int8,
                              dose::Float64, AB_period::Float64, no_AB_period::Float64)
-    if AB_period == 0.0
-        return 0.0
-    end
+    AB_period == 0.0 && return 0.0
     cycle_len = AB_period + no_AB_period
     pos = mod(absolute_time, cycle_len)
     if phase == 0
@@ -288,9 +265,7 @@ end
 
 @inline function time_to_next_ab_switch_patch(absolute_time::Float64, phase::Int8,
                                               AB_period::Float64, no_AB_period::Float64)
-    if AB_period == 0.0
-        return Inf
-    end
+    AB_period == 0.0 && return Inf
     cycle_len = AB_period + no_AB_period
     pos = mod(absolute_time, cycle_len)
     if phase == 0
@@ -300,6 +275,7 @@ end
     end
 end
 
+# buf = [S0, SR, SR2, SS, R0, RS, RR, RR2]
 function gillespie!(x::Vector{Int32}, p::ModelParameters, tf::Float64,
                     model_time::Float64, ab_phase::Int8, rng::AbstractRNG)
 
@@ -322,25 +298,24 @@ function gillespie!(x::Vector{Int32}, p::ModelParameters, tf::Float64,
         A = get_A_patch(abs_time, ab_phase, dose, AB_period, no_AB_period)
 
         αN_over_K = α * N * invK
-
         nSR_plus_nRR   = nSR + nRR_
         nSR2_plus_nRR2 = nSR2 + nRR2_
         nSS_plus_nRS   = nSS_ + nRS
 
         total_rate = (
-            λ*nS0 + (αN_over_K + A)*nS0 + β1_over_K*nS0*nSR_plus_nRR + β2_over_K*nS0*nSR2_plus_nRR2 + βSS_over_K*nS0*nSS_plus_nRS +
+            λ*nS0 + (αN_over_K + A)*nS0 +
+            β1_over_K*nS0*nSR_plus_nRR + β2_over_K*nS0*nSR2_plus_nRR2 + βSS_over_K*nS0*nSS_plus_nRS +
             λRR*nSR + αN_over_K*nSR + s1*nSR*λRR +
             λRR2*nSR2 + αN_over_K*nSR2 + s2*nSR2*λRR2 +
             λSS*nSS_ + (αN_over_K + A)*nSS_ + SS_s*nSS_*λSS +
-            λR*nR0 + αN_over_K*nR0 + β1_over_K*nR0*nSR_plus_nRR + β2_over_K*nR0*nSR2_plus_nRR2 + βSS_over_K*nR0*nSS_plus_nRS +
+            λR*nR0 + αN_over_K*nR0 +
+            β1_over_K*nR0*nSR_plus_nRR + β2_over_K*nR0*nSR2_plus_nRR2 + βSS_over_K*nR0*nSS_plus_nRS +
             λRR*nRS + αN_over_K*nRS + SS_s*nRS*λRR +
             λRR*nRR_ + αN_over_K*nRR_ + s1*nRR_*λRR +
             λRR2*nRR2_ + αN_over_K*nRR2_ + s2*nRR2_*λRR2
         )
 
-        if total_rate <= 0.0
-            break
-        end
+        total_rate <= 0.0 && break
 
         τ = -log(rand(rng)) / total_rate
         t_switch = time_to_next_ab_switch_patch(abs_time, ab_phase, AB_period, no_AB_period)
@@ -350,9 +325,7 @@ function gillespie!(x::Vector{Int32}, p::ModelParameters, tf::Float64,
         end
 
         dt += τ
-        if dt > tf
-            break
-        end
+        dt > tf && break
 
         ru = rand(rng) * total_rate
         cumulative = 0.0
@@ -482,9 +455,7 @@ end
 
 @inline function handle_extinctions!(sim::GridDynamics)
     p_ext = sim.params.extinction_rate * sim.params.dt
-    if p_ext <= 0.0
-        return
-    end
+    p_ext <= 0.0 && return
     g = sim.grid
     rng = sim.mig_rng
     @inbounds for j in 1:g.cols, i in 1:g.rows
@@ -502,9 +473,7 @@ end
 function handle_migration!(sim::GridDynamics)
     g = sim.grid; p = sim.params
     r = g.rows; c = g.cols
-    if p.migration_rate <= 0.0
-        return
-    end
+    p.migration_rate <= 0.0 && return
 
     rng = sim.mig_rng
     events = Vector{NTuple{10,Int32}}()
@@ -603,18 +572,15 @@ function step!(sim::GridDynamics)
     return sim
 end
 
-function is_extinct(grid::GridSpace)
-    return all(==(0), grid.total_pop)
-end
+is_extinct(grid::GridSpace) = all(==(0), grid.total_pop)
 
-function run_simulation!(sim::GridDynamics; n_steps::Int=100, display_interval::Int=10,
-                         output_dir::String="output/spatial_frames")
+function run_simulation!(sim::GridDynamics; n_steps::Int=200, display_interval::Int=50,
+                         output_dir::String="output_spatial_frames")
 
-    mkpath(output_dir)
+    isdir(output_dir) || mkpath(output_dir)
     ts = sim.time_series
 
     update_time_series!(ts, sim.grid, sim.model_time)
-
     fig, implot = setup_visualization(sim.grid, ts)
 
     function save_frame(stepnum::Int)
@@ -646,4 +612,47 @@ function run_simulation!(sim::GridDynamics; n_steps::Int=100, display_interval::
     return sim
 end
 
-end
+# =========================
+# MAIN
+# =========================
+println("\n" * "="^70)
+println("SPATIAL MODEL: RUN")
+println("="^70)
+
+master_seed = 3
+
+grid = GridSpace(20, 20)
+initialize_grid!(grid;
+    population_fractions = [0.5, 0.25, 0.25],
+    population_types = [
+        [3000, 3000, 0,    0,    0,    0,    0, 0],   # S0 + SR
+        [3000, 0,    3000, 0,    0,    0,    0, 0],   # S0 + SR2
+        [0,    0,    0,    0, 3000, 3000,    0, 0]    # R0 + RS
+    ],
+    seed=master_seed
+)
+
+params = ModelParameters(
+    1.0,        # λ
+    0.925,      # λSS
+    0.95,       # λR
+    0.87875,    # λRR
+    0.8348125,  # λRR2
+    0.005, 0.2, # SS_s, SS_β
+    0.005, 0.2, # s1, β1
+    0.032, 0.14,# s2, β2
+    1.0,        # α
+    1.0,        # dose
+    10000.0,# K
+    0.001,      # migration_rate
+    0.0,        # extinction_rate
+    1.0,        # dt
+    40.0,       # AB_period
+    350.0,      # no_AB_period
+    true,       # out_of_phase
+    0.5         # phase_fraction
+)
+
+sim = GridDynamics(grid, params; seed=master_seed)
+@time run_simulation!(sim; n_steps=200, display_interval=50, output_dir="output_spatial_frames")
+println("Done.")
