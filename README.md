@@ -16,21 +16,3 @@ Cell-type notation is consistent across models:
 | `RS` | Chromosomally resistant, sensitive plasmid |
 | `RR` | Chromosomally resistant, resistant plasmid 1 |
 | `RR2` | Chromosomally resistant, resistant plasmid 2 |
-
-## Install / run demos
-
-Clone + instantiate:
-```bash
-git clone <YOUR_GITHUB_URL_HERE>
-cd PlasmidModels
-julia --project=. -e "using Pkg; Pkg.instantiate()"
-```
-
-Run demos (write outputs into `output/`):
-
-```bash
-julia --project=. examples/ode_demo.jl
-julia --project=. examples/gillespie_demo.jl
-julia --project=. examples/spatial_demo.jl
-```
-
