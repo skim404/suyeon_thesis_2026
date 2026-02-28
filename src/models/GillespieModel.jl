@@ -1,11 +1,5 @@
-\
-module GillespieModel
-
-using Random
-using CSV
-using DataFrames
-
-export ModelParameters, gillespie_patch!, run_gillespie_patch
+## gillespie_standalone.jl
+using Random, Distributions, CSV, DataFrames
 
 struct ModelParameters
     λ::Float64
@@ -30,23 +24,20 @@ struct ModelParameters
 end
 
 @inline function get_A(absolute_time::Float64, dose::Float64, AB_period::Float64, no_AB_period::Float64)
-    if AB_period == 0.0
-        return 0.0
-    end
+    AB_period == 0.0 && return 0.0
     cycle_len = AB_period + no_AB_period
     pos = mod(absolute_time, cycle_len)
     return pos >= no_AB_period ? dose : 0.0
 end
 
 @inline function time_to_next_ab_switch(absolute_time::Float64, AB_period::Float64, no_AB_period::Float64)
-    if AB_period == 0.0
-        return Inf
-    end
+    AB_period == 0.0 && return Inf
     cycle_len = AB_period + no_AB_period
     pos = mod(absolute_time, cycle_len)
     return pos < no_AB_period ? (no_AB_period - pos) : (cycle_len - pos)
 end
 
+# x = [S0, SR, SR2, SS, R0, RS, RR, RR2]
 function gillespie_patch!(x::Vector{Int32}, p::ModelParameters, tf::Float64,
                          model_time::Float64, rng::AbstractRNG)
 
@@ -87,9 +78,7 @@ function gillespie_patch!(x::Vector{Int32}, p::ModelParameters, tf::Float64,
             λRR2*nRR2_ + αN_over_K*nRR2_ + s2*nRR2_*λRR2
         )
 
-        if total_rate <= 0.0
-            break
-        end
+        total_rate <= 0.0 && break
 
         τ = -log(rand(rng)) / total_rate
         t_switch = time_to_next_ab_switch(abs_time, AB_period, no_AB_period)
@@ -99,9 +88,7 @@ function gillespie_patch!(x::Vector{Int32}, p::ModelParameters, tf::Float64,
         end
 
         dt += τ
-        if dt > tf
-            break
-        end
+        dt > tf && break
 
         ru = rand(rng) * total_rate
         cumulative = 0.0
@@ -229,17 +216,15 @@ function gillespie_patch!(x::Vector{Int32}, p::ModelParameters, tf::Float64,
     return x
 end
 
-function run_gillespie_patch(x0::Vector{Int32}, p::ModelParameters;
-                            dt::Float64=1.0, t_end::Float64=500.0,
-                            seed::Int=1, output_dir::AbstractString="output/gillespie",
-                            save_csv::Bool=true)
+function run_patch(x0::Vector{Int32}, p::ModelParameters;
+                   dt::Float64=1.0, t_end::Float64=500.0, seed::Int=3,
+                   output_dir::AbstractString="output_gillespie", save_csv::Bool=true)
+    isdir(output_dir) || mkpath(output_dir)
 
-    mkpath(output_dir)
     rng = MersenneTwister(seed)
-
     x = copy(x0)
-    rows = Vector{NTuple{9,Float64}}()
 
+    rows = Vector{NTuple{9,Float64}}()
     t = 0.0
     while t < t_end
         push!(rows, (t, x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]))
@@ -248,12 +233,33 @@ function run_gillespie_patch(x0::Vector{Int32}, p::ModelParameters;
     end
 
     df = DataFrame(rows, [:time,:nS0,:nSR,:nSR2,:nSS,:nR0,:nRS,:nRR,:nRR2])
-
-    if save_csv
-        CSV.write(joinpath(output_dir, "gillespie_patch.csv"), df)
-    end
-
+    save_csv && CSV.write(joinpath(output_dir, "gillespie_patch.csv"), df)
     return df
 end
 
-end
+# =========================
+# MAIN
+# =========================
+println("\n" * "="^70)
+println("GILLESPIE (SINGLE PATCH): RUN")
+println("="^70)
+
+params = ModelParameters(
+    1.0,        # λ
+    0.925,      # λSS
+    0.95,       # λR
+    0.87875,    # λRR
+    0.8348125,  # λRR2
+    0.005, 0.2, # SS_s, SS_β
+    0.005, 0.2, # s1, β1
+    0.032, 0.14,# s2, β2
+    1.0,        # α
+    1.0,        # dose
+    10000.0,# K
+    40.0,       # AB_period
+    350.0       # no_AB_period
+)
+
+x0 = Int32[0, 1000, 0, 0, 1000, 0, 0, 0]  # [S0, SR, SR2, SS, R0, RS, RR, RR2]
+@time df = run_patch(x0, params; dt=1.0, t_end=500.0, seed=3, output_dir="output_gillespie", save_csv=true)
+println("Done. Rows: ", nrow(df))
