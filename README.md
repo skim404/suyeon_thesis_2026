@@ -1,10 +1,8 @@
-# PlasmidModels (Julia)
+# Evolution of Plasmid-Carried Antibiotic Resistance Genes in Fluctuating Environments
 
-A Julia repo packaging three bacterial population models:
-
-1. **ODE model** (well-mixed; two resistant plasmids + one sensitive plasmid; fluctuating antibiotic)
-2. **Spatial model** (grid of patches; within-patch SSA + optional migration/extinction + frame output)
-3. **Gillespie (single patch)** extracted from the spatial SSA (non-spatial).
+1. **ODE model** 
+2. **Spatial model** 
+3. **Gillespie (single patch)**
 
 Cell-type notation is consistent across models:
 
@@ -35,20 +33,4 @@ julia --project=. examples/ode_demo.jl
 julia --project=. examples/gillespie_demo.jl
 julia --project=. examples/spatial_demo.jl
 ```
-
-## Using as a library
-From a Julia session started in this repo:
-```julia
-using PlasmidModels
-```
-
-Modules:
-- `PlasmidModels.ODEModel`
-- `PlasmidModels.GillespieModel`
-- `PlasmidModels.SpatialModel`
-
-## Outputs
-- ODE demo: `output/ode/` (CSVs + PNG plots)
-- Gillespie demo: `output/gillespie/` (CSV)
-- Spatial demo: `output/spatial_frames/` (PNG frames)
 
