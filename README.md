@@ -48,6 +48,6 @@ julia models/ODE/demo.jl
 # Gillespie model
 julia models/Gillespie/demo.jl
 
-# Spatial model (multithreading recommended)
-julia --threads auto models/Spatial/demo.jl
+# Spatial model
+julia models/Spatial/demo.jl
 ```
