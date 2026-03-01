@@ -1,4 +1,4 @@
-# Evolution of Plasmid-Carried Antibiotic Resistance Genes in Fluctuating Antibiotic Environments
+# Evolution of Plasmid-Carried Antibiotic Resistance Genes in a Fluctuating Antibiotic Environment
 
 This project assesses whether plasmid-carried antibiotic resistance genes can be favoured over chromosome-carried ones despite the inherent instability of plasmids in fluctuating antibiotic environments. The ordinary differential equation (ODE) model is adapted from Lehtinen et al. (2019), which was then extended into a Gillespie algorithm model and a spatial model. All three models simulate bacterial populations comprised of 6 (+2, if an additional resistant plasmid is considered), each defined by chromosomal resistance status, plasmid carriage, and plasmid resistance type. These populations are subjected to a fluctuating antibiotic environment whose temporal structure is defined by the two parameters Ton and Toff.
 
